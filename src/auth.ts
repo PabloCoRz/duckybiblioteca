@@ -1,6 +1,7 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
+import {prisma} from "@/lib/prisma"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -12,30 +13,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
 
-        // TODO: replace this with a real DB lookup once Prisma is set up
-        // For now you can hardcode a test user to verify everything works
-        const testUser = {
-          id: "1",
-          email: "admin@ducky.edu",
-          password: await bcrypt.hash("password123", 10),
-          role: "Administrador",
-          nombre: "Admin"
-        }
+        const user = await prisma.usuario.findUnique({
+          where: { email: credentials.email as string }
+        })
 
-        if (credentials.email !== testUser.email) return null
+        if (!user || !user.activo) return null
 
         const passwordMatch = await bcrypt.compare(
           credentials.password as string,
-          testUser.password
+          user.passwordHash
         )
 
         if (!passwordMatch) return null
 
         return {
-          id: testUser.id,
-          email: testUser.email,
-          role: testUser.role,
-          name: testUser.nombre,
+          id: String(user.id),
+          email: user.email,
+          name: `${user.nombre} ${user.apellido}`,
+          role: user.rol,
         }
       }
     })

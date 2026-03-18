@@ -2,12 +2,150 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 // Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider   = "prisma-client"
+  output     = "../src/generated/prisma"
+  engineType = "client"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
+}
+
+// ─── USUARIO ───────────────────────────────────────────────
+model Usuario {
+  id           Int        @id @default(autoincrement())
+  email        String     @unique
+  passwordHash String
+  nombre       String
+  apellido     String
+  rol          Rol
+  activo       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+
+  prestamos    Prestamo[]
+  multas       Multa[]
+  reportes     Reporte[]
+}
+
+enum Rol {
+  Administrador
+  Bibliotecario
+  Estudiante
+  Maestro
+  Colaborador
+}
+
+// ─── AUTOR ─────────────────────────────────────────────────
+model Autor {
+  id       Int     @id @default(autoincrement())
+  nombre   String
+  libros   LibroAutor[]
+}
+
+// ─── LIBRO ─────────────────────────────────────────────────
+model Libro {
+  id          Int          @id @default(autoincrement())
+  isbn        String       @unique
+  titulo      String
+  subtitulo   String?
+  editorial   String?
+  edicion     String?
+  anioPub     Int?
+  numPaginas  Int?
+  categoria   String?
+  idioma      String?
+  descripcion String?
+  portadaUrl  String?
+  createdAt   DateTime     @default(now())
+
+  autores     LibroAutor[]
+  copias      Copia[]
+}
+
+// ─── LIBRO_AUTOR (many to many) ────────────────────────────
+model LibroAutor {
+  libroId  Int
+  autorId  Int
+
+  libro    Libro  @relation(fields: [libroId], references: [id])
+  autor    Autor  @relation(fields: [autorId], references: [id])
+
+  @@id([libroId, autorId])
+}
+
+// ─── COPIA ─────────────────────────────────────────────────
+// each row is one physical copy of a book
+model Copia {
+  id             Int          @id @default(autoincrement())
+  libroId        Int
+  codigoInterno  String       @unique // e.g. "LIB-0042-C2" your library's own tag
+  pasillo        String?
+  estante        String?
+  estado         EstadoCopia  @default(Disponible)
+  createdAt      DateTime     @default(now())
+
+  libro          Libro        @relation(fields: [libroId], references: [id])
+  prestamos      Prestamo[]
+}
+
+enum EstadoCopia {
+  Disponible
+  Prestada
+  Perdida
+  Dañada
+}
+
+// ─── PRESTAMO ──────────────────────────────────────────────
+model Prestamo {
+  id              Int            @id @default(autoincrement())
+  usuarioId       Int
+  copiaId         Int            // lending a specific copy, not just a book
+  fechaPrestamo   DateTime       @default(now())
+  fechaDevolucion DateTime
+  fechaRealDev    DateTime?
+  estado          EstadoPrestamo @default(Activo)
+  renovaciones    Int            @default(0)
+
+  usuario         Usuario        @relation(fields: [usuarioId], references: [id])
+  copia           Copia          @relation(fields: [copiaId], references: [id])
+  multa           Multa?
+}
+
+enum EstadoPrestamo {
+  Activo
+  Renovado
+  Devuelto
+  Perdido
+}
+
+// ─── MULTA ─────────────────────────────────────────────────
+model Multa {
+  id         Int          @id @default(autoincrement())
+  prestamoId Int          @unique
+  usuarioId  Int
+  monto      Float
+  motivo     String
+  estado     EstadoMulta  @default(Pendiente)
+  fecha      DateTime     @default(now())
+
+  prestamo   Prestamo     @relation(fields: [prestamoId], references: [id])
+  usuario    Usuario      @relation(fields: [usuarioId], references: [id])
+}
+
+enum EstadoMulta {
+  Pendiente
+  Pagada
+}
+
+// ─── REPORTE ───────────────────────────────────────────────
+model Reporte {
+  id            Int      @id @default(autoincrement())
+  generadoPorId Int
+  tipo          String
+  parametros    Json?
+  resultadoUrl  String?
+  createdAt     DateTime @default(now())
+
+  generadoPor   Usuario  @relation(fields: [generadoPorId], references: [id])
 }
