@@ -22,6 +22,11 @@ export default function LoginPage() {
       redirect: false,
     })
 
+    if (result?.error === "EmailNoVerificado") {
+      setError("Por favor verifica tu correo antes de iniciar sesión")
+      return
+    }
+
     if (result?.error) {
       setError("Email o contraseña incorrectos")
       setLoading(false)

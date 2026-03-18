@@ -21,6 +21,7 @@ model Usuario {
   apellido     String
   rol          Rol
   activo       Boolean    @default(true)
+  emailVerificado  Boolean    @default(false)  // ← add this
   createdAt    DateTime   @default(now())
 
   prestamos    Prestamo[]
@@ -148,4 +149,19 @@ model Reporte {
   createdAt     DateTime @default(now())
 
   generadoPor   Usuario  @relation(fields: [generadoPorId], references: [id])
+}
+
+// ─── Tokens para gestion contrasenia ───────────────────────────────────────────────
+model Token {
+  id        Int       @id @default(autoincrement())
+  email     String
+  token     String    @unique
+  tipo      TipoToken
+  expira    DateTime
+  createdAt DateTime  @default(now())
+}
+
+enum TipoToken {
+  VerificacionEmail
+  ResetPassword
 }
