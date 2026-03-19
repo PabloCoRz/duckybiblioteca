@@ -1,8 +1,17 @@
-'use client'
-import { useState } from "react";
+import { auth } from "@/auth"
+import { redirect } from "next/navigation"
 
-export default function LandingAdmin(){
-  return(
-    <p>ya quedo el sistema de auth lo pueden calar en /login es admin@dukcy.edu y password123, falta crear la bd ahorita nomas usa ese test user</p>
-  )
+export default async function RootPage() {
+  const session = await auth()
+
+  if (!session) {
+    redirect("/login")
+  }
+
+  const adminRoles = ["Administrador", "Bibliotecario"]
+  if (adminRoles.includes(session.user?.role ?? "")) {
+    redirect("/dashboard")
+  }
+
+  redirect("/home")
 }
