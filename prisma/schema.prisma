@@ -19,6 +19,8 @@ model Usuario {
   passwordHash String
   nombre       String
   apellido     String
+  genero       String?
+  edad         Int?
   rol          Rol
   activo       Boolean    @default(true)
   emailVerificado  Boolean    @default(false)  // ← add this
