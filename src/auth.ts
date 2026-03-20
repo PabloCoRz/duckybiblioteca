@@ -1,13 +1,14 @@
+// src/auth.ts
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
-import {prisma} from "@/lib/prisma"
+import { prisma } from "@/lib/prisma"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        email: { label: "Email", type: "email" },
+        email:    { label: "Email",    type: "email" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
@@ -19,7 +20,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!user || !user.activo) return null
 
-        // block login if email not verified
         if (!user.emailVerificado) {
           throw new Error("EmailNoVerificado")
         }
@@ -32,32 +32,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!passwordMatch) return null
 
         return {
-          id: String(user.id),
+          id:    String(user.id),
           email: user.email,
-          name: `${user.nombre} ${user.apellido}`,
-          role: user.rol,
+          name:  `${user.nombre} ${user.apellido}`,
+          role:  user.rol,
         }
       }
     })
   ],
   callbacks: {
     jwt({ token, user }) {
-      // runs when token is first created (on login)
       if (user) {
         token.role = user.role
-        token.id = user.id
+        token.id   = user.id
       }
       return token
     },
     session({ session, token }) {
-      // runs every time session is read anywhere in the app
       session.user.role = token.role as string
-      session.user.id = token.id as string
+      session.user.id   = token.id   as string
       return session
     },
-    
   },
   pages: {
-    signIn: "/login", // your custom login page
+    signIn: "/",   // el landing ES el login
   }
 })
