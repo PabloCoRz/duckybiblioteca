@@ -4,11 +4,12 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 
 type Copia = {
-  id: number
+  id: number        // 0 = nueva copia aún no guardada
   codigoInterno: string
   pasillo: string | null
   estante: string | null
   estado: string
+  nueva?: boolean   // flag para distinguir las que hay que crear
 }
 
 type Libro = {
@@ -57,38 +58,91 @@ function Portada({ url, className }: { url: string | null; className: string }) 
   return <img src={url} alt="portada" className={`${className} object-cover rounded border border-stone/20`} />
 }
 
-// ─── Copias editor (en formulario de edición) ─────────────────
+// ─── Copias editor ────────────────────────────────────────────
 function CopiasEditor({
   copias,
+  isbn,
   onChange,
 }: {
   copias: Copia[]
+  isbn: string
   onChange: (copias: Copia[]) => void
 }) {
-  function updateCopia(id: number, field: keyof Copia, value: string) {
-    onChange(copias.map((c) => c.id === id ? { ...c, [field]: value } : c))
+  function updateCopia(idx: number, field: keyof Copia, value: string) {
+    onChange(copias.map((c, i) => i === idx ? { ...c, [field]: value } : c))
+  }
+
+  function addCopia() {
+    // Calcular el siguiente número de copia basado en el total actual
+    const siguiente = copias.length + 1
+    const nuevaCopia: Copia = {
+      id: 0,
+      codigoInterno: `${isbn}-C${siguiente}`,
+      pasillo: copias[0]?.pasillo ?? null,
+      estante: copias[0]?.estante ?? null,
+      estado: "Disponible",
+      nueva: true,
+    }
+    onChange([...copias, nuevaCopia])
+  }
+
+  function removeCopia(idx: number) {
+    // Solo se pueden quitar copias nuevas (no guardadas aún)
+    const copia = copias[idx]
+    if (!copia.nueva) return
+    onChange(copias.filter((_, i) => i !== idx))
   }
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="text-gold font-semibold text-sm">Copias Físicas ({copias.length})</h3>
+        <button
+          type="button"
+          onClick={addCopia}
+          className="flex items-center gap-1 text-xs text-gold hover:text-gold/70 transition font-medium"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          Agregar Copia
+        </button>
       </div>
-      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-        {copias.map((copia) => (
-          <div key={copia.id} className="bg-cream/50 rounded-lg p-3 border border-stone/20">
+
+      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+        {copias.map((copia, idx) => (
+          <div key={idx} className={`rounded-lg p-3 border ${copia.nueva ? "border-gold/50 bg-gold/5" : "border-stone/20 bg-cream/50"}`}>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono text-navy font-medium">{copia.codigoInterno}</span>
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${ESTADO_BADGE_COLOR[copia.estado] ?? "bg-stone/20 text-navy"}`}>
-                {copia.estado}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-navy font-medium">{copia.codigoInterno}</span>
+                {copia.nueva && (
+                  <span className="text-xs bg-gold/20 text-gold font-medium px-1.5 py-0.5 rounded">Nueva</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${ESTADO_BADGE_COLOR[copia.estado] ?? "bg-stone/20 text-navy"}`}>
+                  {copia.estado}
+                </span>
+                {copia.nueva && (
+                  <button
+                    type="button"
+                    onClick={() => removeCopia(idx)}
+                    className="text-red-400 hover:text-red-600 transition"
+                    title="Quitar copia"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="text-xs text-stone block mb-1">Estado</label>
                 <select
                   value={copia.estado}
-                  onChange={(e) => updateCopia(copia.id, "estado", e.target.value)}
+                  onChange={(e) => updateCopia(idx, "estado", e.target.value)}
                   className="w-full px-2 py-1.5 rounded border border-stone/30 text-xs text-navy bg-white outline-none focus:ring-1 focus:ring-gold"
                 >
                   {ESTADOS.map((e) => <option key={e}>{e}</option>)}
@@ -98,7 +152,7 @@ function CopiasEditor({
                 <label className="text-xs text-stone block mb-1">Pasillo</label>
                 <input
                   value={copia.pasillo ?? ""}
-                  onChange={(e) => updateCopia(copia.id, "pasillo", e.target.value)}
+                  onChange={(e) => updateCopia(idx, "pasillo", e.target.value)}
                   placeholder="Ej: A3"
                   className="w-full px-2 py-1.5 rounded border border-stone/30 text-xs text-navy bg-white outline-none focus:ring-1 focus:ring-gold"
                 />
@@ -107,7 +161,7 @@ function CopiasEditor({
                 <label className="text-xs text-stone block mb-1">Estante</label>
                 <input
                   value={copia.estante ?? ""}
-                  onChange={(e) => updateCopia(copia.id, "estante", e.target.value)}
+                  onChange={(e) => updateCopia(idx, "estante", e.target.value)}
                   placeholder="Ej: 5"
                   className="w-full px-2 py-1.5 rounded border border-stone/30 text-xs text-navy bg-white outline-none focus:ring-1 focus:ring-gold"
                 />
@@ -120,7 +174,7 @@ function CopiasEditor({
   )
 }
 
-// ─── Campo de autores dinámico ───────────────────────────────
+// ─── Campo de autores dinámico ────────────────────────────────
 function AutoresField({ initial }: { initial: string[] }) {
   const [autores, setAutores] = useState<string[]>(initial.length > 0 ? initial : [""])
 
@@ -144,16 +198,14 @@ function AutoresField({ initial }: { initial: string[] }) {
             required={i === 0}
             className="flex-1 px-3 py-2 rounded border border-stone/30 text-sm text-navy bg-cream/50 outline-none focus:ring-1 focus:ring-gold"
           />
-          <button type="button" onClick={() => remove(i)}
-            className="text-red-400 hover:text-red-600 transition shrink-0">
+          <button type="button" onClick={() => remove(i)} className="text-red-400 hover:text-red-600 transition shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
             </svg>
           </button>
         </div>
       ))}
-      <button type="button" onClick={add}
-        className="flex items-center gap-1 text-xs text-gold hover:text-gold/70 transition">
+      <button type="button" onClick={add} className="flex items-center gap-1 text-xs text-gold hover:text-gold/70 transition">
         <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
         </svg>
@@ -164,10 +216,8 @@ function AutoresField({ initial }: { initial: string[] }) {
   )
 }
 
-// ─── Formulario crear libro ───────────────────────────────────
-function LibroFormCrear({
-  onSubmit, onCancel,
-}: {
+// ─── Formulario crear ─────────────────────────────────────────
+function LibroFormCrear({ onSubmit, onCancel }: {
   onSubmit: (data: Record<string, string>) => void
   onCancel: () => void
 }) {
@@ -212,16 +262,14 @@ function LibroFormCrear({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-gold font-medium block mb-1">Categoría*</label>
-                <select name="categoria" required
-                  className="w-full px-3 py-2 rounded border border-stone/30 text-sm text-navy bg-cream/50 outline-none focus:ring-1 focus:ring-gold">
+                <select name="categoria" required className="w-full px-3 py-2 rounded border border-stone/30 text-sm text-navy bg-cream/50 outline-none focus:ring-1 focus:ring-gold">
                   <option value="">Selecciona</option>
                   {CATEGORIAS.map((c) => <option key={c}>{c}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-gold font-medium block mb-1">Idioma*</label>
-                <select name="idioma" defaultValue="Español" required
-                  className="w-full px-3 py-2 rounded border border-stone/30 text-sm text-navy bg-cream/50 outline-none focus:ring-1 focus:ring-gold">
+                <select name="idioma" defaultValue="Español" required className="w-full px-3 py-2 rounded border border-stone/30 text-sm text-navy bg-cream/50 outline-none focus:ring-1 focus:ring-gold">
                   {IDIOMAS.map((i) => <option key={i}>{i}</option>)}
                 </select>
               </div>
@@ -232,8 +280,7 @@ function LibroFormCrear({
               <Field label="Núm. de Ejemplares*" name="numEjemplares" defaultValue="1" type="number" required />
               <div>
                 <label className="text-xs text-gold font-medium block mb-1">Estado inicial</label>
-                <select name="estado" defaultValue="Disponible"
-                  className="w-full px-3 py-2 rounded border border-stone/30 text-sm text-navy bg-cream/50 outline-none focus:ring-1 focus:ring-gold">
+                <select name="estado" defaultValue="Disponible" className="w-full px-3 py-2 rounded border border-stone/30 text-sm text-navy bg-cream/50 outline-none focus:ring-1 focus:ring-gold">
                   {ESTADOS.map((e) => <option key={e}>{e}</option>)}
                 </select>
               </div>
@@ -246,23 +293,15 @@ function LibroFormCrear({
         </div>
       </div>
       <div className="flex justify-center gap-3 pt-2">
-        <button type="button" onClick={onCancel}
-          className="px-6 py-2 rounded border border-gold text-gold text-sm hover:bg-gold hover:text-navy transition">
-          Cancelar
-        </button>
-        <button type="submit"
-          className="px-6 py-2 rounded bg-navy text-white text-sm hover:bg-navy/80 transition">
-          Agregar Libro
-        </button>
+        <button type="button" onClick={onCancel} className="px-6 py-2 rounded border border-gold text-gold text-sm hover:bg-gold hover:text-navy transition">Cancelar</button>
+        <button type="submit" className="px-6 py-2 rounded bg-navy text-white text-sm hover:bg-navy/80 transition">Agregar Libro</button>
       </div>
     </form>
   )
 }
 
-// ─── Formulario editar libro ──────────────────────────────────
-function LibroFormEditar({
-  initial, onSubmit, onCancel,
-}: {
+// ─── Formulario editar ────────────────────────────────────────
+function LibroFormEditar({ initial, onSubmit, onCancel }: {
   initial: Libro
   onSubmit: (data: Record<string, string>, copias: Copia[]) => void
   onCancel: () => void
@@ -282,8 +321,8 @@ function LibroFormEditar({
       <div className="grid grid-cols-2 gap-6">
         <div className="space-y-5">
           <Section title="Identificación">
-            <Field label="ISBN*"     name="isbn"      defaultValue={initial.isbn}      required />
-            <Field label="Título*"   name="titulo"    defaultValue={initial.titulo}    required />
+            <Field label="ISBN*"     name="isbn"      defaultValue={initial.isbn}           required />
+            <Field label="Título*"   name="titulo"    defaultValue={initial.titulo}         required />
             <Field label="Subtítulo" name="subtitulo" defaultValue={initial.subtitulo ?? ""} />
           </Section>
           <Section title="Autoría y Edición">
@@ -302,7 +341,6 @@ function LibroFormEditar({
               className="w-full px-3 py-2 rounded border border-stone/30 text-sm text-navy bg-cream/50 outline-none focus:ring-1 focus:ring-gold resize-none" />
           </Section>
         </div>
-
         <div className="space-y-5">
           <Section title="Portada">
             <Field label="URL de imagen" name="portadaUrl" defaultValue={initial.portadaUrl ?? ""} placeholder="https://i.ibb.co/..." />
@@ -329,21 +367,13 @@ function LibroFormEditar({
               </div>
             </div>
           </Section>
-
-          {/* Copias individuales con estado propio */}
-          <CopiasEditor copias={copias} onChange={setCopias} />
+          {/* Copias con opción de agregar más */}
+          <CopiasEditor copias={copias} isbn={initial.isbn} onChange={setCopias} />
         </div>
       </div>
-
       <div className="flex justify-center gap-3 pt-2">
-        <button type="button" onClick={onCancel}
-          className="px-6 py-2 rounded border border-gold text-gold text-sm hover:bg-gold hover:text-navy transition">
-          Cancelar
-        </button>
-        <button type="submit"
-          className="px-6 py-2 rounded bg-navy text-white text-sm hover:bg-navy/80 transition">
-          Actualizar Libro
-        </button>
+        <button type="button" onClick={onCancel} className="px-6 py-2 rounded border border-gold text-gold text-sm hover:bg-gold hover:text-navy transition">Cancelar</button>
+        <button type="submit" className="px-6 py-2 rounded bg-navy text-white text-sm hover:bg-navy/80 transition">Actualizar Libro</button>
       </div>
     </form>
   )
@@ -377,10 +407,23 @@ export default function LibrosClient({ libros }: { libros: Libro[] }) {
 
   async function handleEdit(data: Record<string, string>, copias: Copia[]) {
     if (!edit) return
+    // Separar copias existentes (actualizar) de copias nuevas (crear)
+    const copiasExistentes = copias.filter((c) => !c.nueva)
+    const copiasNuevas     = copias.filter((c) => c.nueva)
+
     await fetch(`/api/libros/${edit.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...data, copias }),
+      body: JSON.stringify({
+        ...data,
+        copias:      copiasExistentes,
+        copiasNuevas: copiasNuevas.map((c) => ({
+          codigoInterno: c.codigoInterno,
+          pasillo:       c.pasillo,
+          estante:       c.estante,
+          estado:        c.estado,
+        })),
+      }),
     })
     setEdit(null)
     router.refresh()
@@ -413,7 +456,6 @@ export default function LibrosClient({ libros }: { libros: Libro[] }) {
 
   return (
     <div className="space-y-4">
-      {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
         <StatCard title="Total Libros"              value={libros.length} />
         <StatCard title="Total Copias"              value={totalCopias} />
@@ -431,7 +473,6 @@ export default function LibrosClient({ libros }: { libros: Libro[] }) {
               className="text-xs px-3 py-1.5 rounded border border-stone/30 outline-none focus:ring-1 focus:ring-gold bg-cream/50"
             />
           </div>
-
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-stone border-b border-stone/20">
@@ -447,9 +488,7 @@ export default function LibrosClient({ libros }: { libros: Libro[] }) {
             <tbody>
               {filtered.map((libro) => (
                 <tr key={libro.id} className="border-b border-stone/10 hover:bg-cream/30">
-                  <td className="py-2 pr-2">
-                    <Portada url={libro.portadaUrl} className="w-20 h-28" />
-                  </td>
+                  <td className="py-2 pr-2"><Portada url={libro.portadaUrl} className="w-20 h-28" /></td>
                   <td className="py-2 pr-2">
                     <div className="font-medium text-navy">{libro.titulo}</div>
                     <div className="text-stone">ISBN: {libro.isbn}</div>
@@ -463,21 +502,18 @@ export default function LibrosClient({ libros }: { libros: Libro[] }) {
                   </td>
                   <td className="py-2">
                     <div className="flex gap-2 items-center">
-                      <button onClick={() => setView(libro)} title="Ver"
-                        className="text-navy hover:text-gold transition">
+                      <button onClick={() => setView(libro)} title="Ver" className="text-navy hover:text-gold transition">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
                         </svg>
                       </button>
-                      <button onClick={() => setEdit(libro)} title="Editar"
-                        className="text-navy hover:text-gold transition">
+                      <button onClick={() => setEdit(libro)} title="Editar" className="text-navy hover:text-gold transition">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                         </svg>
                       </button>
-                      <button onClick={() => setDel(libro)} title="Eliminar"
-                        className="text-red-400 hover:text-red-600 transition">
+                      <button onClick={() => setDel(libro)} title="Eliminar" className="text-red-400 hover:text-red-600 transition">
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="3 6 5 6 21 6"/>
                           <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
@@ -521,13 +557,13 @@ export default function LibrosClient({ libros }: { libros: Libro[] }) {
               {view.subtitulo && <p className="text-stone text-xs">{view.subtitulo}</p>}
               <p className="text-xs text-stone mt-1">ISBN: {view.isbn}</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 text-xs">
-                <Info label="Autor(es)"   value={autoresString(view)} />
-                <Info label="Editorial"   value={view.editorial} />
-                <Info label="Edición"     value={view.edicion} />
-                <Info label="Año"         value={view.anioPub?.toString()} />
-                <Info label="Páginas"     value={view.numPaginas?.toString()} />
-                <Info label="Categoría"   value={view.categoria} />
-                <Info label="Idioma"      value={view.idioma} />
+                <Info label="Autor(es)"  value={autoresString(view)} />
+                <Info label="Editorial"  value={view.editorial} />
+                <Info label="Edición"    value={view.edicion} />
+                <Info label="Año"        value={view.anioPub?.toString()} />
+                <Info label="Páginas"    value={view.numPaginas?.toString()} />
+                <Info label="Categoría"  value={view.categoria} />
+                <Info label="Idioma"     value={view.idioma} />
               </div>
               {view.descripcion && (
                 <div className="mt-3">
@@ -537,8 +573,6 @@ export default function LibrosClient({ libros }: { libros: Libro[] }) {
               )}
             </div>
           </div>
-
-          {/* Tabla de copias */}
           <div className="mt-5">
             <p className="text-xs font-semibold text-gold mb-2">Copias físicas ({view.copias.length})</p>
             <div className="space-y-1">
@@ -546,19 +580,13 @@ export default function LibrosClient({ libros }: { libros: Libro[] }) {
                 <div key={c.id} className="flex items-center justify-between text-xs bg-cream/50 rounded px-3 py-2">
                   <span className="font-mono text-navy">{c.codigoInterno}</span>
                   <span className="text-stone">{c.pasillo ? `Pasillo ${c.pasillo}` : ""}{c.estante ? `, ${c.estante}` : ""}</span>
-                  <span className={`px-2 py-0.5 rounded font-medium ${ESTADO_BADGE_COLOR[c.estado] ?? "bg-stone/20 text-navy"}`}>
-                    {c.estado}
-                  </span>
+                  <span className={`px-2 py-0.5 rounded font-medium ${ESTADO_BADGE_COLOR[c.estado] ?? "bg-stone/20 text-navy"}`}>{c.estado}</span>
                 </div>
               ))}
             </div>
           </div>
-
           <div className="flex justify-end mt-6">
-            <button onClick={() => setView(null)}
-              className="px-4 py-2 rounded border border-gold text-gold text-sm hover:bg-gold hover:text-navy transition">
-              Cerrar
-            </button>
+            <button onClick={() => setView(null)} className="px-4 py-2 rounded border border-gold text-gold text-sm hover:bg-gold hover:text-navy transition">Cerrar</button>
           </div>
         </Modal>
       )}
@@ -578,14 +606,8 @@ export default function LibrosClient({ libros }: { libros: Libro[] }) {
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <button onClick={() => setDel(null)}
-              className="px-4 py-2 rounded border border-gold text-gold text-sm hover:bg-gold hover:text-navy transition">
-              Regresar
-            </button>
-            <button onClick={handleDelete}
-              className="px-4 py-2 rounded bg-navy text-white text-sm hover:bg-navy/80 transition">
-              Eliminar Libro
-            </button>
+            <button onClick={() => setDel(null)} className="px-4 py-2 rounded border border-gold text-gold text-sm hover:bg-gold hover:text-navy transition">Regresar</button>
+            <button onClick={handleDelete} className="px-4 py-2 rounded bg-navy text-white text-sm hover:bg-navy/80 transition">Eliminar Libro</button>
           </div>
         </Modal>
       )}

@@ -12,17 +12,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       isbn, titulo, subtitulo, editorial, edicion,
       anioPub, numPaginas, categoria, idioma, descripcion, portadaUrl,
       autores,
-      // copias: array de { id, estado, pasillo, estante } para actualizar individualmente
-      copias,
-      // pasillo/estante globales (aplican a todas las copias si no se mandan copias individuales)
-      pasillo, estante,
+      copias,       // array de copias existentes a actualizar: { id, estado, pasillo, estante }
+      copiasNuevas, // array de copias a crear: { codigoInterno, estado, pasillo, estante }
     } = body
 
     // ── Actualizar autores ────────────────────────────────
     if (autores !== undefined) {
       await prisma.libroAutor.deleteMany({ where: { libroId: id } })
-      const autoresData = (autores as string)
-        .split(";").map((a: string) => a.trim()).filter(Boolean)
+      const autoresData = (autores as string).split(";").map((a: string) => a.trim()).filter(Boolean)
       for (const nombre of autoresData) {
         const autor = await prisma.autor.upsert({
           where: { nombre },
@@ -33,7 +30,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
     }
 
-    // ── Actualizar copias individualmente (con estado propio) ─
+    // ── Actualizar copias existentes individualmente ──────
     if (Array.isArray(copias) && copias.length > 0) {
       for (const copia of copias as { id: number; estado?: string; pasillo?: string; estante?: string }[]) {
         await prisma.copia.update({
@@ -45,23 +42,29 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           },
         })
       }
-    } else if (pasillo !== undefined || estante !== undefined) {
-      // Fallback: actualizar pasillo/estante global a todas las copias
-      await prisma.copia.updateMany({
-        where: { libroId: id },
-        data: {
-          ...(pasillo !== undefined && { pasillo }),
-          ...(estante !== undefined && { estante }),
-        },
-      })
+    }
+
+    // ── Crear copias nuevas ───────────────────────────────
+    if (Array.isArray(copiasNuevas) && copiasNuevas.length > 0) {
+      for (const c of copiasNuevas as { codigoInterno: string; estado?: string; pasillo?: string; estante?: string }[]) {
+        await prisma.copia.create({
+          data: {
+            libroId:       id,
+            codigoInterno: c.codigoInterno,
+            estado:        (c.estado ?? "Disponible") as any,
+            pasillo:       c.pasillo ?? null,
+            estante:       c.estante ?? null,
+          },
+        })
+      }
     }
 
     // ── Actualizar datos del libro ────────────────────────
     const libro = await prisma.libro.update({
       where: { id },
       data: {
-        ...(isbn       && { isbn }),
-        ...(titulo     && { titulo }),
+        ...(isbn   && { isbn }),
+        ...(titulo && { titulo }),
         subtitulo:   subtitulo   ?? undefined,
         editorial:   editorial   ?? undefined,
         edicion:     edicion     ?? undefined,
