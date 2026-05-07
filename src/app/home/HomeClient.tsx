@@ -95,8 +95,69 @@ function LibroModal({ libro, onClose }: { libro: Libro; onClose: () => void }) {
   )
 }
 
+// ─── Modal Solicitar Préstamo ─────────────────────────────────
+function ModalPrestamo({
+  libro,
+  onClose,
+  onConfirm,
+  loading,
+}: {
+  libro: Libro
+  onClose: () => void
+  onConfirm: (dias: number) => void
+  loading: boolean
+}) {
+  const [dias, setDias] = useState(14)
+  const disponibles = libro.copias.filter((c) => c.estado === "Disponible").length
+  const devolucion = new Date()
+  devolucion.setDate(devolucion.getDate() + dias)
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl p-8 w-full max-w-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-xl font-bold text-navy mb-1">Solicitar Préstamo</h2>
+        <p className="text-sm text-stone mb-5">Confirma los detalles de tu solicitud</p>
+        <div className="flex gap-4 mb-5">
+          <Portada url={libro.portadaUrl} className="w-20 h-28 shrink-0" />
+          <div className="flex-1 text-sm space-y-1">
+            <p className="font-bold text-navy text-base">{libro.titulo}</p>
+            <p className="text-stone">Disponibles: <span className={disponibles > 0 ? "text-green-600 font-medium" : "text-red-500 font-medium"}>{disponibles}</span></p>
+          </div>
+        </div>
+        <div className="space-y-3 bg-cream/50 rounded-lg p-4 mb-5">
+          <div>
+            <label className="text-xs text-stone block mb-1">Duración del préstamo</label>
+            <select value={dias} onChange={(e) => setDias(Number(e.target.value))}
+              className="w-full px-3 py-2 rounded border border-stone/30 text-sm text-navy bg-white outline-none focus:ring-1 focus:ring-gold">
+              <option value={7}>7 días</option>
+              <option value={14}>14 días (estándar)</option>
+              <option value={21}>21 días</option>
+            </select>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-stone">Fecha de devolución:</span>
+            <span className="text-navy font-medium">{devolucion.toLocaleDateString("es-MX")}</span>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded border border-gold text-gold text-sm hover:bg-gold hover:text-navy transition">Cancelar</button>
+          <button onClick={() => onConfirm(dias)} disabled={loading || disponibles === 0}
+            className="px-4 py-2 rounded bg-navy text-white text-sm hover:bg-navy/80 transition disabled:opacity-50">
+            {loading ? "Procesando..." : "Confirmar Préstamo"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Card de resultado (vista búsqueda) ──────────────────────
-function ResultadoCard({ libro, onVerTodo }: { libro: Libro; onVerTodo: () => void }) {
+function ResultadoCard({ libro, onVerTodo, isLoggedIn, onSolicitar }: {
+  libro: Libro
+  onVerTodo: () => void
+  isLoggedIn: boolean
+  onSolicitar: (libro: Libro) => void
+}) {
   const disponibles = libro.copias.filter(c => c.estado === "Disponible").length
   const primera = libro.copias[0]
 
@@ -121,7 +182,26 @@ function ResultadoCard({ libro, onVerTodo }: { libro: Libro; onVerTodo: () => vo
               </span>)
             </p>
           )}
-          <p className="text-sm text-stone">Numero de Ejemplares: <span className="text-navy">{disponibles} de {libro.copias.length} disponibles</span></p>
+          <p className="text-sm text-stone">Numero de Ejemplares: <span className="text-navy font-medium">{libro.copias.length}</span></p>
+
+          {disponibles > 0 && isLoggedIn && (
+            <div className="pt-2">
+              <button
+                onClick={() => onSolicitar(libro)}
+                className="px-5 py-2 rounded bg-gold text-white text-sm font-medium hover:bg-gold/80 transition shadow-sm"
+              >
+                Solicitar Préstamo
+              </button>
+            </div>
+          )}
+          {disponibles > 0 && !isLoggedIn && (
+            <div className="pt-2">
+              <a href="/login"
+                className="inline-block px-5 py-2 rounded bg-gold text-white text-sm font-medium hover:bg-gold/80 transition shadow-sm">
+                Iniciar sesión para solicitar
+              </a>
+            </div>
+          )}
         </div>
       </div>
       <div className="border-t border-stone/10 px-5 py-3 flex justify-end">
@@ -137,12 +217,15 @@ function ResultadoCard({ libro, onVerTodo }: { libro: Libro; onVerTodo: () => vo
 }
 
 // ─── Componente principal ────────────────────────────────────
-export default function HomeClient({ destacados }: { destacados: Libro[] }) {
-  const [query,      setQuery]      = useState("")
-  const [resultados, setResultados] = useState<Libro[] | null>(null)
-  const [loading,    setLoading]    = useState(false)
-  const [modal,      setModal]      = useState<Libro | null>(null)
-  const [buscado,    setBuscado]    = useState("")
+export default function HomeClient({ destacados, isLoggedIn }: { destacados: Libro[], isLoggedIn: boolean }) {
+  const [query,        setQuery]        = useState("")
+  const [resultados,   setResultados]   = useState<Libro[] | null>(null)
+  const [loading,      setLoading]      = useState(false)
+  const [modal,        setModal]        = useState<Libro | null>(null)
+  const [prestamoModal, setPrestamoModal] = useState<Libro | null>(null)
+  const [loadingPrestamo, setLoadingPrestamo] = useState(false)
+  const [toast,        setToast]        = useState<{ msg: string; type: "ok"|"err" } | null>(null)
+  const [buscado,      setBuscado]      = useState("")
 
   async function buscar() {
     if (!query.trim()) return
@@ -158,6 +241,32 @@ export default function HomeClient({ destacados }: { destacados: Libro[] }) {
     setQuery("")
     setResultados(null)
     setBuscado("")
+  }
+
+  async function handleSolicitar(dias: number) {
+    if (!prestamoModal) return
+    setLoadingPrestamo(true)
+    try {
+      const res = await fetch("/api/prestamos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ libroId: prestamoModal.id, diasPrestamo: dias }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        setToast({ msg: err.error ?? "Error al solicitar préstamo", type: "err" })
+      } else {
+        setToast({ msg: "¡Préstamo registrado correctamente!", type: "ok" })
+        // Re-fetch results to update availability
+        const updated = await fetch(`/api/libros/buscar?q=${encodeURIComponent(buscado)}`)
+        setResultados(await updated.json())
+      }
+    } catch {
+      setToast({ msg: "Error de red", type: "err" })
+    }
+    setLoadingPrestamo(false)
+    setPrestamoModal(null)
+    setTimeout(() => setToast(null), 4000)
   }
 
   // ── VISTA A: Landing con hero + grid de portadas ──
@@ -214,6 +323,14 @@ export default function HomeClient({ destacados }: { destacados: Libro[] }) {
   // ── VISTA B: Resultados de búsqueda ──
   return (
     <>
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-lg shadow-lg text-white text-sm font-medium
+          ${toast.type === "ok" ? "bg-green-600" : "bg-red-600"}`}>
+          {toast.msg}
+        </div>
+      )}
+
       {/* Barra de búsqueda compacta */}
       <section className="px-8 py-6 border-b border-stone/20 bg-cream">
         <div className="flex items-center gap-4">
@@ -255,7 +372,13 @@ export default function HomeClient({ destacados }: { destacados: Libro[] }) {
             ) : (
               <div className="space-y-4">
                 {resultados.map(libro => (
-                  <ResultadoCard key={libro.id} libro={libro} onVerTodo={() => setModal(libro)} />
+                  <ResultadoCard
+                    key={libro.id}
+                    libro={libro}
+                    onVerTodo={() => setModal(libro)}
+                    isLoggedIn={isLoggedIn}
+                    onSolicitar={setPrestamoModal}
+                  />
                 ))}
               </div>
             )}
@@ -264,6 +387,15 @@ export default function HomeClient({ destacados }: { destacados: Libro[] }) {
       </section>
 
       {modal && <LibroModal libro={modal} onClose={() => setModal(null)} />}
+
+      {prestamoModal && (
+        <ModalPrestamo
+          libro={prestamoModal}
+          onClose={() => setPrestamoModal(null)}
+          onConfirm={handleSolicitar}
+          loading={loadingPrestamo}
+        />
+      )}
     </>
   )
 }

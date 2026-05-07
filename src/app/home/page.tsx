@@ -2,6 +2,7 @@
 import Navbar from "@/components/layout/Navbar"
 import HomeClient from "./HomeClient"
 import { prisma } from "@/lib/prisma"
+import { auth } from "@/auth"
 
 function isValidUrl(url: string | null): boolean {
   if (!url) return false
@@ -9,6 +10,9 @@ function isValidUrl(url: string | null): boolean {
 }
 
 export default async function HomePage() {
+  const session = await auth()
+  const isLoggedIn = !!session?.user
+
   const destacados = await prisma.libro.findMany({
     take: 8,
     include: { autores: { include: { autor: true } }, copias: true },
@@ -25,7 +29,7 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen flex flex-col bg-cream">
       <Navbar />
-      <HomeClient destacados={data} />
+      <HomeClient destacados={data} isLoggedIn={isLoggedIn} />
     </div>
   )
 }
