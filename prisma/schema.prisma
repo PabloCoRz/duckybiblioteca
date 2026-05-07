@@ -1,5 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// prisma/schema.prisma
+// Full schema — adds "Pendiente" to EstadoPrestamo for the approval flow
 
 generator client {
   provider   = "prisma-client"
@@ -20,9 +20,8 @@ model Usuario {
   apellido        String
   genero          String?
   edad            Int?
-  // Identificadores institucionales (opcionales según el rol)
-  matricula       String?    @unique  // Estudiantes
-  numEmpleado     String?    @unique  // Maestros / Colaboradores / Staff
+  matricula       String?    @unique
+  numEmpleado     String?    @unique
   rol             Rol
   activo          Boolean    @default(true)
   emailVerificado Boolean    @default(false)
@@ -72,10 +71,8 @@ model Libro {
 model LibroAutor {
   libroId Int
   autorId Int
-
   libro   Libro  @relation(fields: [libroId], references: [id])
   autor   Autor  @relation(fields: [autorId], references: [id])
-
   @@id([libroId, autorId])
 }
 
@@ -107,8 +104,8 @@ model Prestamo {
   copiaId         Int
   fechaPrestamo   DateTime       @default(now())
   fechaDevolucion DateTime
-  fechaRealDev    DateTime?      // fecha real en que se devolvió / se reportó como perdido
-  estado          EstadoPrestamo @default(Activo)
+  fechaRealDev    DateTime?
+  estado          EstadoPrestamo @default(Pendiente)   // ← starts as Pendiente
   renovaciones    Int            @default(0)
 
   usuario         Usuario        @relation(fields: [usuarioId], references: [id])
@@ -117,6 +114,7 @@ model Prestamo {
 }
 
 enum EstadoPrestamo {
+  Pendiente   // ← NEW: waiting for librarian approval
   Activo
   Renovado
   Devuelto
@@ -125,19 +123,18 @@ enum EstadoPrestamo {
 
 // ─── MULTA ─────────────────────────────────────────────────
 model Multa {
-  id               Int         @id @default(autoincrement())
-  prestamoId       Int         @unique
-  usuarioId        Int
-  monto            Float
-  motivo           String
-  estado           EstadoMulta @default(Pendiente)
-  fecha            DateTime    @default(now())
-  // Referencia de pago registrada por Tesorería
-  refTesoreria     String?     // folio / referencia de pago en el sistema de Tesorería
-  fechaPago        DateTime?   // cuándo se registró el pago
+  id           Int         @id @default(autoincrement())
+  prestamoId   Int         @unique
+  usuarioId    Int
+  monto        Float
+  motivo       String
+  estado       EstadoMulta @default(Pendiente)
+  fecha        DateTime    @default(now())
+  refTesoreria String?
+  fechaPago    DateTime?
 
-  prestamo         Prestamo    @relation(fields: [prestamoId], references: [id])
-  usuario          Usuario     @relation(fields: [usuarioId], references: [id])
+  prestamo     Prestamo    @relation(fields: [prestamoId], references: [id])
+  usuario      Usuario     @relation(fields: [usuarioId], references: [id])
 }
 
 enum EstadoMulta {
@@ -149,15 +146,15 @@ enum EstadoMulta {
 model Reporte {
   id            Int      @id @default(autoincrement())
   generadoPorId Int
-  tipo          String   // e.g. "prestamos_mes", "multas_pendientes", "inventario"
-  parametros    Json?    // filtros / rango de fechas usados al generar
-  resultadoUrl  String?  // URL del archivo generado (PDF / CSV en storage)
+  tipo          String
+  parametros    Json?
+  resultadoUrl  String?
   createdAt     DateTime @default(now())
 
   generadoPor   Usuario  @relation(fields: [generadoPorId], references: [id])
 }
 
-// ─── TOKEN (verificación email / reset password) ───────────
+// ─── TOKEN ─────────────────────────────────────────────────
 model Token {
   id        Int       @id @default(autoincrement())
   email     String

@@ -11,16 +11,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const {
       isbn, titulo, subtitulo, editorial, edicion,
       anioPub, numPaginas, categoria, idioma, descripcion, portadaUrl,
-      autores, pasillo, estante,
+      autores,
+      // copias: array de { id, estado, pasillo, estante } para actualizar individualmente
+      copias,
+      // pasillo/estante globales (aplican a todas las copias si no se mandan copias individuales)
+      pasillo, estante,
     } = body
 
-    // Actualizar autores: borrar relaciones viejas y recrear
+    // ── Actualizar autores ────────────────────────────────
     if (autores !== undefined) {
       await prisma.libroAutor.deleteMany({ where: { libroId: id } })
-
       const autoresData = (autores as string)
         .split(";").map((a: string) => a.trim()).filter(Boolean)
-
       for (const nombre of autoresData) {
         const autor = await prisma.autor.upsert({
           where: { nombre },
@@ -31,8 +33,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
     }
 
-    // Actualizar copias si cambia pasillo/estante
-    if (pasillo !== undefined || estante !== undefined) {
+    // ── Actualizar copias individualmente (con estado propio) ─
+    if (Array.isArray(copias) && copias.length > 0) {
+      for (const copia of copias as { id: number; estado?: string; pasillo?: string; estante?: string }[]) {
+        await prisma.copia.update({
+          where: { id: copia.id },
+          data: {
+            ...(copia.estado  !== undefined && { estado:  copia.estado  as any }),
+            ...(copia.pasillo !== undefined && { pasillo: copia.pasillo }),
+            ...(copia.estante !== undefined && { estante: copia.estante }),
+          },
+        })
+      }
+    } else if (pasillo !== undefined || estante !== undefined) {
+      // Fallback: actualizar pasillo/estante global a todas las copias
       await prisma.copia.updateMany({
         where: { libroId: id },
         data: {
@@ -42,11 +56,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       })
     }
 
+    // ── Actualizar datos del libro ────────────────────────
     const libro = await prisma.libro.update({
       where: { id },
       data: {
-        ...(isbn        && { isbn }),
-        ...(titulo      && { titulo }),
+        ...(isbn       && { isbn }),
+        ...(titulo     && { titulo }),
         subtitulo:   subtitulo   ?? undefined,
         editorial:   editorial   ?? undefined,
         edicion:     edicion     ?? undefined,
@@ -71,7 +86,6 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const { id: rawId } = await params
     const id = Number(rawId)
 
-    // Borrar relaciones primero
     await prisma.libroAutor.deleteMany({ where: { libroId: id } })
     await prisma.copia.deleteMany({ where: { libroId: id } })
     await prisma.libro.delete({ where: { id } })

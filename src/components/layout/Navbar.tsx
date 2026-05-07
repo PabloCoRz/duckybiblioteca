@@ -9,8 +9,9 @@ const ADMIN_ROLES = ["Administrador", "Bibliotecario"]
 
 export default async function Navbar() {
   const session = await auth()
-  const role = session?.user?.role as string | undefined
-  const isPrivileged = role && ADMIN_ROLES.includes(role)
+  const role        = session?.user?.role as string | undefined
+  const isPrivileged= role && ADMIN_ROLES.includes(role)
+  const isLoggedIn  = !!session?.user
 
   return (
     <header className="bg-navy text-white flex items-center justify-between px-6 py-3 shrink-0">
@@ -19,18 +20,24 @@ export default async function Navbar() {
       <div className="flex items-center gap-3">
         <Image src="/simplelogo.png" alt="Ducky" width={48} height={48} className="rounded-lg" />
         <Link href="/home">
-            <div>
-                <div className="font-bold text-lg leading-tight">Ducky University</div>
-                <div className="text-gold text-xs">University Established in 1900</div>
-            </div>
+          <div>
+            <div className="font-bold text-lg leading-tight">Ducky University</div>
+            <div className="text-gold text-xs">Unversity Established in 1900</div>
+          </div>
         </Link>
-        
       </div>
 
-      {/* Lado derecho */}
+      {/* Right side */}
       <div className="flex items-center gap-4">
 
-        {/* Botón Panel Admin — solo Administrador y Bibliotecario */}
+          <Link
+            href="/mis-prestamos"
+            className="text-sm font-medium text-white hover:text-gold transition"
+          >
+            Mis Prestamos
+          </Link>
+
+        {/* Panel Admin — solo Administrador y Bibliotecario */}
         {isPrivileged && (
           <Link
             href="/dashboard"
@@ -45,24 +52,20 @@ export default async function Navbar() {
 
         {session?.user ? (
           <div className="flex items-center gap-3">
-            {/* Nombre y rol */}
             <div className="text-right hidden sm:block">
               <p className="text-sm font-medium leading-tight">{session.user.name ?? "Usuario"}</p>
               {role && <p className="text-xs text-gold leading-tight">{role}</p>}
             </div>
-            {/* Avatar */}
             <div className="w-9 h-9 rounded-full bg-stone flex items-center justify-center shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-cream" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
               </svg>
             </div>
-            {/* Logout */}
             <LogoutButton />
           </div>
         ) : (
-      // Ejecuta la redirección directamente
-      redirect("/login")
-    )}
+          redirect("/login")
+        )}
 
       </div>
     </header>
