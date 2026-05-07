@@ -1,7 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
 generator client {
   provider   = "prisma-client"
   output     = "../src/generated/prisma"
@@ -14,21 +13,24 @@ datasource db {
 
 // ─── USUARIO ───────────────────────────────────────────────
 model Usuario {
-  id           Int        @id @default(autoincrement())
-  email        String     @unique
-  passwordHash String
-  nombre       String
-  apellido     String
-  genero       String?
-  edad         Int?
-  rol          Rol
-  activo       Boolean    @default(true)
-  emailVerificado  Boolean    @default(false)  // ← add this
-  createdAt    DateTime   @default(now())
+  id              Int        @id @default(autoincrement())
+  email           String     @unique
+  passwordHash    String
+  nombre          String
+  apellido        String
+  genero          String?
+  edad            Int?
+  // Identificadores institucionales (opcionales según el rol)
+  matricula       String?    @unique  // Estudiantes
+  numEmpleado     String?    @unique  // Maestros / Colaboradores / Staff
+  rol             Rol
+  activo          Boolean    @default(true)
+  emailVerificado Boolean    @default(false)
+  createdAt       DateTime   @default(now())
 
-  prestamos    Prestamo[]
-  multas       Multa[]
-  reportes     Reporte[]
+  prestamos       Prestamo[]
+  multas          Multa[]
+  reportes        Reporte[]
 }
 
 enum Rol {
@@ -41,9 +43,9 @@ enum Rol {
 
 // ─── AUTOR ─────────────────────────────────────────────────
 model Autor {
-  id       Int     @id @default(autoincrement())
-  nombre   String  @unique
-  libros   LibroAutor[]
+  id     Int          @id @default(autoincrement())
+  nombre String       @unique
+  libros LibroAutor[]
 }
 
 // ─── LIBRO ─────────────────────────────────────────────────
@@ -68,28 +70,27 @@ model Libro {
 
 // ─── LIBRO_AUTOR (many to many) ────────────────────────────
 model LibroAutor {
-  libroId  Int
-  autorId  Int
+  libroId Int
+  autorId Int
 
-  libro    Libro  @relation(fields: [libroId], references: [id])
-  autor    Autor  @relation(fields: [autorId], references: [id])
+  libro   Libro  @relation(fields: [libroId], references: [id])
+  autor   Autor  @relation(fields: [autorId], references: [id])
 
   @@id([libroId, autorId])
 }
 
 // ─── COPIA ─────────────────────────────────────────────────
-// each row is one physical copy of a book
 model Copia {
-  id             Int          @id @default(autoincrement())
-  libroId        Int
-  codigoInterno  String       @unique // e.g. "LIB-0042-C2" your library's own tag
-  pasillo        String?
-  estante        String?
-  estado         EstadoCopia  @default(Disponible)
-  createdAt      DateTime     @default(now())
+  id            Int         @id @default(autoincrement())
+  libroId       Int
+  codigoInterno String      @unique
+  pasillo       String?
+  estante       String?
+  estado        EstadoCopia @default(Disponible)
+  createdAt     DateTime    @default(now())
 
-  libro          Libro        @relation(fields: [libroId], references: [id])
-  prestamos      Prestamo[]
+  libro         Libro       @relation(fields: [libroId], references: [id])
+  prestamos     Prestamo[]
 }
 
 enum EstadoCopia {
@@ -103,10 +104,10 @@ enum EstadoCopia {
 model Prestamo {
   id              Int            @id @default(autoincrement())
   usuarioId       Int
-  copiaId         Int            // lending a specific copy, not just a book
+  copiaId         Int
   fechaPrestamo   DateTime       @default(now())
   fechaDevolucion DateTime
-  fechaRealDev    DateTime?
+  fechaRealDev    DateTime?      // fecha real en que se devolvió / se reportó como perdido
   estado          EstadoPrestamo @default(Activo)
   renovaciones    Int            @default(0)
 
@@ -124,16 +125,19 @@ enum EstadoPrestamo {
 
 // ─── MULTA ─────────────────────────────────────────────────
 model Multa {
-  id         Int          @id @default(autoincrement())
-  prestamoId Int          @unique
-  usuarioId  Int
-  monto      Float
-  motivo     String
-  estado     EstadoMulta  @default(Pendiente)
-  fecha      DateTime     @default(now())
+  id               Int         @id @default(autoincrement())
+  prestamoId       Int         @unique
+  usuarioId        Int
+  monto            Float
+  motivo           String
+  estado           EstadoMulta @default(Pendiente)
+  fecha            DateTime    @default(now())
+  // Referencia de pago registrada por Tesorería
+  refTesoreria     String?     // folio / referencia de pago en el sistema de Tesorería
+  fechaPago        DateTime?   // cuándo se registró el pago
 
-  prestamo   Prestamo     @relation(fields: [prestamoId], references: [id])
-  usuario    Usuario      @relation(fields: [usuarioId], references: [id])
+  prestamo         Prestamo    @relation(fields: [prestamoId], references: [id])
+  usuario          Usuario     @relation(fields: [usuarioId], references: [id])
 }
 
 enum EstadoMulta {
@@ -145,15 +149,15 @@ enum EstadoMulta {
 model Reporte {
   id            Int      @id @default(autoincrement())
   generadoPorId Int
-  tipo          String
-  parametros    Json?
-  resultadoUrl  String?
+  tipo          String   // e.g. "prestamos_mes", "multas_pendientes", "inventario"
+  parametros    Json?    // filtros / rango de fechas usados al generar
+  resultadoUrl  String?  // URL del archivo generado (PDF / CSV en storage)
   createdAt     DateTime @default(now())
 
   generadoPor   Usuario  @relation(fields: [generadoPorId], references: [id])
 }
 
-// ─── Tokens para gestion contrasenia ───────────────────────────────────────────────
+// ─── TOKEN (verificación email / reset password) ───────────
 model Token {
   id        Int       @id @default(autoincrement())
   email     String

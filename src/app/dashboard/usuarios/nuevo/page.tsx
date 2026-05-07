@@ -1,4 +1,5 @@
 "use client"
+// src/app/dashboard/usuarios/nuevo/page.tsx
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -6,6 +7,7 @@ import Link from "next/link"
 export default function NuevoUsuarioPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [rol, setRol] = useState("Estudiante")
   const router = useRouter()
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -15,7 +17,7 @@ export default function NuevoUsuarioPage() {
     const form = new FormData(e.currentTarget)
 
     const password = form.get("password") as string
-    const confirm = form.get("confirmar") as string
+    const confirm  = form.get("confirmar") as string
 
     if (password !== confirm) {
       setError("Las contraseñas no coinciden")
@@ -27,12 +29,14 @@ export default function NuevoUsuarioPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        nombre: form.get("nombre"),
-        apellido: form.get("apellido"),
-        email: form.get("email"),
-        genero: form.get("genero"),
-        edad: form.get("edad") ? Number(form.get("edad")) : null,
-        rol: form.get("rol"),
+        nombre:      form.get("nombre"),
+        apellido:    form.get("apellido"),
+        email:       form.get("email"),
+        genero:      form.get("genero") || null,
+        edad:        form.get("edad") ? Number(form.get("edad")) : null,
+        matricula:   form.get("matricula")   || null,
+        numEmpleado: form.get("numEmpleado") || null,
+        rol:         form.get("rol"),
         password,
       }),
     })
@@ -47,6 +51,9 @@ export default function NuevoUsuarioPage() {
     router.push("/dashboard/usuarios")
   }
 
+  const esEstudiante = rol === "Estudiante"
+  const esEmpleado   = ["Maestro", "Colaborador", "Bibliotecario", "Administrador"].includes(rol)
+
   return (
     <div className="max-w-2xl">
       <div className="bg-white rounded-lg p-8 border border-stone/20">
@@ -60,9 +67,11 @@ export default function NuevoUsuarioPage() {
 
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Nombre(s)*" name="nombre" required />
-            <Field label="Apellido(s)*" name="apellido" required />
-            <Field label="Correo Electrónico*" name="email" type="email" required />
+            {/* Datos personales */}
+            <Field label="Nombre(s)*"              name="nombre"   required />
+            <Field label="Apellido(s)*"            name="apellido" required />
+            <Field label="Correo Electrónico*"     name="email"    type="email" required />
+
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-xs text-stone block mb-1">Género</label>
@@ -71,20 +80,39 @@ export default function NuevoUsuarioPage() {
                   <option value="">-</option>
                   <option value="M">M</option>
                   <option value="F">F</option>
+                  <option value="Otro">Otro</option>
                 </select>
               </div>
               <Field label="Edad" name="edad" type="number" />
             </div>
-            <div>
+
+            {/* Rol */}
+            <div className="col-span-2">
               <label className="text-xs text-stone block mb-1">Rol</label>
-              <select name="rol"
+              <select name="rol" value={rol} onChange={(e) => setRol(e.target.value)}
                 className="w-full px-3 py-2 rounded border border-stone/30 text-sm text-navy bg-cream/50 outline-none focus:ring-1 focus:ring-gold">
                 {["Estudiante", "Maestro", "Colaborador", "Bibliotecario", "Administrador"].map(r => (
                   <option key={r}>{r}</option>
                 ))}
               </select>
             </div>
-            <Field label="Contraseña" name="password" type="password" required />
+
+            {/* Identificadores institucionales (condicional al rol) */}
+            {esEstudiante && (
+              <div className="col-span-2">
+                <Field label="Matrícula" name="matricula"
+                  placeholder="Ej: MAT-2024-001" />
+              </div>
+            )}
+            {esEmpleado && (
+              <div className="col-span-2">
+                <Field label="Número de Empleado" name="numEmpleado"
+                  placeholder="Ej: EMP-001" />
+              </div>
+            )}
+
+            {/* Contraseña */}
+            <Field label="Contraseña"          name="password"  type="password" required />
             <Field label="Confirmar Contraseña" name="confirmar" type="password" required />
           </div>
 
@@ -100,13 +128,13 @@ export default function NuevoUsuarioPage() {
   )
 }
 
-function Field({ label, name, type = "text", required = false }: {
-  label: string; name: string; type?: string; required?: boolean
+function Field({ label, name, type = "text", required = false, placeholder }: {
+  label: string; name: string; type?: string; required?: boolean; placeholder?: string
 }) {
   return (
     <div>
       <label className="text-xs text-stone block mb-1">{label}</label>
-      <input name={name} type={type} required={required}
+      <input name={name} type={type} required={required} placeholder={placeholder}
         className="w-full px-3 py-2 rounded border border-stone/30 text-sm text-navy bg-cream/50 outline-none focus:ring-1 focus:ring-gold" />
     </div>
   )

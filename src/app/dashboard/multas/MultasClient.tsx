@@ -3,10 +3,10 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 
-type Libro = { id: number; titulo: string; isbn: string; portadaUrl: string | null }
-type Copia = { id: number; codigoInterno: string; libro: Libro }
+type Libro    = { id: number; titulo: string; isbn: string; portadaUrl: string | null }
+type Copia    = { id: number; codigoInterno: string; libro: Libro }
 type Prestamo = { id: number; copia: Copia; fechaPrestamo: string; fechaDevolucion: string }
-type Usuario = { id: number; nombre: string; apellido: string; email: string }
+type Usuario  = { id: number; nombre: string; apellido: string; email: string }
 
 type Multa = {
   id: number
@@ -14,20 +14,25 @@ type Multa = {
   motivo: string
   estado: string
   fecha: string
+  refTesoreria: string | null
+  fechaPago: string | null
   usuario: Usuario
   prestamo: Prestamo
 }
 
 export default function MultasClient({ multas, isAdmin }: { multas: Multa[]; isAdmin: boolean }) {
   const [estadoFilter, setEstadoFilter] = useState("Todos")
-  const [search, setSearch] = useState("")
-  const [loadingId, setLoadingId] = useState<number | null>(null)
-  const [toast, setToast] = useState<{ msg: string; type: "ok" | "err" } | null>(null)
+  const [search,       setSearch]       = useState("")
+  const [loadingId,    setLoadingId]    = useState<number | null>(null)
+  const [toast,        setToast]        = useState<{ msg: string; type: "ok" | "err" } | null>(null)
+  // Modal de pago con referencia Tesorería
+  const [pagoModal,    setPagoModal]    = useState<Multa | null>(null)
+  const [refTesoreria, setRefTesoreria] = useState("")
   const router = useRouter()
 
-  const pendientes = multas.filter((m) => m.estado === "Pendiente").length
-  const pagadas    = multas.filter((m) => m.estado === "Pagada").length
-  const totalMonto = multas.filter((m) => m.estado === "Pendiente").reduce((s, m) => s + m.monto, 0)
+  const pendientes  = multas.filter((m) => m.estado === "Pendiente").length
+  const pagadas     = multas.filter((m) => m.estado === "Pagada").length
+  const totalMonto  = multas.filter((m) => m.estado === "Pendiente").reduce((s, m) => s + m.monto, 0)
 
   const filtered = multas.filter((m) => {
     const matchEstado = estadoFilter === "Todos" || m.estado === estadoFilter
@@ -36,10 +41,20 @@ export default function MultasClient({ multas, isAdmin }: { multas: Multa[]; isA
     return matchEstado && matchSearch
   })
 
-  async function marcarPagada(id: number) {
-    setLoadingId(id)
+  function openPago(multa: Multa) {
+    setRefTesoreria("")
+    setPagoModal(multa)
+  }
+
+  async function confirmarPago() {
+    if (!pagoModal) return
+    setLoadingId(pagoModal.id)
     try {
-      const res = await fetch(`/api/multas/${id}`, { method: "PATCH" })
+      const res = await fetch(`/api/multas/${pagoModal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refTesoreria: refTesoreria.trim() || null }),
+      })
       if (res.ok) {
         setToast({ msg: "Multa marcada como pagada", type: "ok" })
         router.refresh()
@@ -50,6 +65,7 @@ export default function MultasClient({ multas, isAdmin }: { multas: Multa[]; isA
       setToast({ msg: "Error de red", type: "err" })
     }
     setLoadingId(null)
+    setPagoModal(null)
     setTimeout(() => setToast(null), 4000)
   }
 
@@ -112,6 +128,7 @@ export default function MultasClient({ multas, isAdmin }: { multas: Multa[]; isA
               <th className="pb-2 font-medium">Monto</th>
               <th className="pb-2 font-medium">Fecha</th>
               <th className="pb-2 font-medium">Estado</th>
+              {isAdmin && <th className="pb-2 font-medium">Ref. Tesorería</th>}
               {isAdmin && <th className="pb-2 font-medium">Acción</th>}
             </tr>
           </thead>
@@ -142,14 +159,22 @@ export default function MultasClient({ multas, isAdmin }: { multas: Multa[]; isA
                   </span>
                 </td>
                 {isAdmin && (
+                  <td className="py-2 pr-3 text-navy">
+                    {m.estado === "Pagada" && m.refTesoreria
+                      ? <span className="font-mono text-xs">{m.refTesoreria}</span>
+                      : <span className="text-stone">—</span>
+                    }
+                  </td>
+                )}
+                {isAdmin && (
                   <td className="py-2">
                     {m.estado === "Pendiente" ? (
                       <button
-                        onClick={() => marcarPagada(m.id)}
+                        onClick={() => openPago(m)}
                         disabled={loadingId === m.id}
                         className="px-2 py-1 rounded text-xs bg-green-100 text-green-700 hover:bg-green-200 transition disabled:opacity-50"
                       >
-                        {loadingId === m.id ? "..." : "Marcar Pagada"}
+                        {loadingId === m.id ? "..." : "Registrar Pago"}
                       </button>
                     ) : (
                       <span className="text-stone">—</span>
@@ -160,7 +185,7 @@ export default function MultasClient({ multas, isAdmin }: { multas: Multa[]; isA
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={isAdmin ? 7 : 5} className="py-8 text-center text-stone">
+                <td colSpan={isAdmin ? 8 : 5} className="py-8 text-center text-stone">
                   No hay multas para mostrar.
                 </td>
               </tr>
@@ -168,6 +193,49 @@ export default function MultasClient({ multas, isAdmin }: { multas: Multa[]; isA
           </tbody>
         </table>
       </div>
+
+      {/* ── Modal registrar pago con referencia Tesorería ── */}
+      {pagoModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => setPagoModal(null)}>
+          <div className="bg-white rounded-xl p-8 w-full max-w-md shadow-xl"
+            onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-navy mb-2">Registrar Pago de Multa</h2>
+            <p className="text-sm text-stone mb-5">
+              Confirma el pago de la multa por{" "}
+              <span className="font-semibold text-navy">
+                ${pagoModal.monto.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+              </span>{" "}
+              para <span className="font-semibold text-navy">{pagoModal.usuario.nombre} {pagoModal.usuario.apellido}</span>.
+            </p>
+
+            <div className="mb-5">
+              <label className="text-xs text-stone block mb-1">
+                Referencia de Tesorería{" "}
+                <span className="text-stone/60">(opcional — folio del recibo de pago)</span>
+              </label>
+              <input
+                type="text"
+                value={refTesoreria}
+                onChange={(e) => setRefTesoreria(e.target.value)}
+                placeholder="Ej: TES-2024-00123"
+                className="w-full px-3 py-2 rounded border border-stone/30 text-sm text-navy bg-cream/50 outline-none focus:ring-1 focus:ring-gold"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPagoModal(null)}
+                className="px-4 py-2 rounded border border-gold text-gold text-sm hover:bg-gold hover:text-navy transition">
+                Cancelar
+              </button>
+              <button onClick={confirmarPago} disabled={loadingId === pagoModal.id}
+                className="px-4 py-2 rounded bg-navy text-white text-sm hover:bg-navy/80 transition disabled:opacity-50">
+                {loadingId === pagoModal.id ? "Guardando..." : "Confirmar Pago"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
