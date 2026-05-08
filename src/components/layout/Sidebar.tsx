@@ -4,12 +4,11 @@ import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
 
 const navItems = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Gestión De Usuarios", href: "/dashboard/usuarios" },
-  { label: "Gestión De Libros", href: "/dashboard/libros" },
-  { label: "Consultar Catálogo", href: "/dashboard/catalogo" },
+  { label: "Dashboard",            href: "/dashboard" },
+  { label: "Gestión De Usuarios",  href: "/dashboard/usuarios" },
+  { label: "Gestión De Libros",    href: "/dashboard/libros" },
   { label: "Gestión De Préstamos", href: "/dashboard/prestamos" },
-  { label: "Gestión De Multas", href: "/dashboard/multas" },
+  { label: "Gestión De Multas",    href: "/dashboard/multas" },
 ]
 
 export default function Sidebar({ role }: { role?: string }) {
@@ -25,10 +24,7 @@ export default function Sidebar({ role }: { role?: string }) {
               key={item.href}
               href={item.href}
               className={`text-xs px-3 py-2 rounded text-center transition font-medium
-                ${isActive
-                  ? "bg-navy text-white"
-                  : "text-navy hover:bg-navy/10"
-                }`}
+                ${isActive ? "bg-navy text-white" : "text-navy hover:bg-navy/10"}`}
             >
               {item.label}
             </Link>
